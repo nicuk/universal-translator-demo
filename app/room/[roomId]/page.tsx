@@ -196,11 +196,23 @@ export default function RoomPage() {
         recognitionRef.current.onresult = async (event: any) => {
           let finalTranscript = ''
           let interimTranscript = ''
+          let confidence = 0
 
           for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript
-            if (event.results[i].isFinal) {
-              finalTranscript += transcript
+            const result = event.results[i]
+            const transcript = result[0].transcript
+            const resultConfidence = result[0].confidence || 0
+            
+            if (result.isFinal) {
+              // Only accept high-confidence results
+              if (resultConfidence > 0.7 || resultConfidence === undefined) {
+                finalTranscript += transcript
+                confidence = resultConfidence
+                console.log(`🎤 Speech confidence: ${(resultConfidence * 100).toFixed(1)}% for "${transcript}"`)
+              } else {
+                console.log(`🔇 Rejected low confidence (${(resultConfidence * 100).toFixed(1)}%): "${transcript}"`)
+                return // Skip low confidence results
+              }
             } else {
               interimTranscript += transcript
             }
@@ -211,9 +223,23 @@ export default function RoomPage() {
           if (finalTranscript && finalTranscript.trim()) {
             const cleanedText = finalTranscript.trim()
             
-            // Better noise filtering - check for meaningful speech
-            if (cleanedText.length < 3 || /^[uh|um|ah|eh|hmm]+$/i.test(cleanedText)) {
-              console.log(`🔄 Skipping translation - noise or too short: "${cleanedText}"`)
+            // Aggressive noise filtering - catch phantom speech
+            const suspiciousPatterns = [
+              /^[uh|um|ah|eh|hmm|ha|oh|o|ni|na|no]+$/i,                    // Filler sounds + phantom syllables
+              /^[aeiou\s]+$/i,                                             // Only vowels/spaces
+              /^(ni\s*ha|o\s*ni|funny\s*ha|ha\s*ha)$/i,                   // Known phantom patterns
+              /^[a-z]{1,2}(\s+[a-z]{1,2})*$/i,                           // Only 1-2 letter words
+              /^[^a-z]*$/i                                                 // No actual letters
+            ]
+            
+            const isPhantomSpeech = (
+              cleanedText.length < 4 ||                                    // Require minimum 4 chars
+              suspiciousPatterns.some(pattern => pattern.test(cleanedText)) ||
+              cleanedText.split(' ').every(word => word.length <= 2)       // All words too short
+            )
+            
+            if (isPhantomSpeech) {
+              console.log(`🚫 Blocking phantom speech: "${cleanedText}" (confidence: ${confidence ? (confidence * 100).toFixed(1) + '%' : 'unknown'})`)
               return
             }
             
@@ -223,7 +249,13 @@ export default function RoomPage() {
               return
             }
 
-            console.log(`🎤 Original English: "${cleanedText}"`)
+            // Extra verification for short/suspicious phrases
+            if (cleanedText.length < 6 && confidence && confidence < 0.9) {
+              console.log(`⚠️ Low confidence short phrase: "${cleanedText}" (${(confidence * 100).toFixed(1)}%) - skipping`)
+              return
+            }
+            
+            console.log(`🎤 Original English: "${cleanedText}" (confidence: ${confidence ? (confidence * 100).toFixed(1) + '%' : 'N/A'})`)
             setLastProcessedText(cleanedText)
             setIsTranslating(true)
             
