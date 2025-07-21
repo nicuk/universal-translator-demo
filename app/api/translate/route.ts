@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGeminiTranslator } from '@/lib/gemini-translator';
 
+// Health check endpoint
+export async function GET() {
+  return NextResponse.json({ 
+    status: 'ready', 
+    service: 'Universal Translator API',
+    timestamp: new Date().toISOString()
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -21,50 +30,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get translator instance
+    // Initialize translator
     const translator = getGeminiTranslator();
-
-    // Perform translation
-    const result = await translator.translate({
-      text,
-      sourceLang,
-      targetLang
-    });
-
-    if (result.error) {
+    
+    // Get translation
+    const result = await translator.translate({ text, sourceLang, targetLang });
+    const translatedText = result.translatedText;
+    
+    if (!translatedText) {
       return NextResponse.json(
-        { error: result.error },
+        { error: 'Translation failed. Please try again.' },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
-      translatedText: result.translatedText,
-      confidence: result.confidence,
+      originalText: text,
+      translatedText,
       sourceLang,
       targetLang,
-      originalText: text
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
     console.error('Translation API error:', error);
-    
     return NextResponse.json(
-      { 
-        error: 'Internal server error', 
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { error: 'Internal server error during translation' },
       { status: 500 }
     );
   }
-}
-
-// Optional: GET endpoint for API health check
-export async function GET() {
-  return NextResponse.json({
-    status: 'healthy',
-    service: 'Gemini Translation API',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  });
 } 
