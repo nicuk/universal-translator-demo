@@ -139,9 +139,30 @@ export default function RoomPage() {
   const [lastProcessedText, setLastProcessedText] = useState('')
   const [isTranslating, setIsTranslating] = useState(false)
   const [translationCache, setTranslationCache] = useState<Map<string, string>>(new Map())
+  const [aiBackendReady, setAiBackendReady] = useState(false)
 
   const recognitionRef = useRef<any>(null)
   const synthRef = useRef<SpeechSynthesis | null>(null)
+
+  // Test AI backend readiness
+  useEffect(() => {
+    const testAIBackend = async () => {
+      try {
+        const response = await fetch('/api/translate', {
+          method: 'GET'
+        })
+        if (response.ok) {
+          setAiBackendReady(true)
+          console.log('✅ AI Backend ready')
+        }
+      } catch (error) {
+        console.log('❌ AI Backend not ready:', error)
+        setAiBackendReady(false)
+      }
+    }
+    
+    testAIBackend()
+  }, [])
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -162,11 +183,13 @@ export default function RoomPage() {
 
       if (SpeechRecognition) {
         recognitionRef.current = new SpeechRecognition()
-        recognitionRef.current.continuous = true
+        recognitionRef.current.continuous = false  // Changed to false to reduce phantom words
         recognitionRef.current.interimResults = true
         recognitionRef.current.lang = 'en-US'
+        recognitionRef.current.maxAlternatives = 1  // Only get the best result
 
         recognitionRef.current.onstart = () => {
+          console.log('🎤 Speech recognition started')
           setIsConnected(true)
         }
 
@@ -337,8 +360,9 @@ export default function RoomPage() {
         recognitionRef.current.onend = () => {
           console.log('🔄 Speech recognition ended')
           
-          // Add delay before restarting to prevent rapid cycling
+          // Only restart if user is still actively listening AND we have recent activity
           if (isListening) {
+            // Add longer delay to prevent picking up ambient noise
             setTimeout(() => {
               if (isListening && recognitionRef.current) {
                 try {
@@ -347,9 +371,12 @@ export default function RoomPage() {
                 } catch (error) {
                   console.error('Error restarting speech recognition:', error)
                   setIsListening(false)
+                  setIsConnected(false)
                 }
               }
-            }, 100) // 100ms delay
+            }, 500) // 500ms delay to reduce phantom words
+          } else {
+            setIsConnected(false)
           }
         }
       }
@@ -525,15 +552,40 @@ export default function RoomPage() {
               </div>
             )}
             
-            {/* Troubleshooting Tips */}
-            {!isConnected && (
-              <div className="mt-2 text-center">
-                <div className="text-red-400 text-sm">❌ Not Connected</div>
-                <div className="text-blue-200 text-xs mt-1">
-                  Allow microphone permissions
+            {/* System Status */}
+            <div className="mt-2 text-center">
+              <div className="flex items-center justify-center space-x-4 text-sm">
+                {/* Microphone Status */}
+                <div className="flex items-center space-x-1">
+                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
+                  <span className={isConnected ? 'text-green-300' : 'text-red-300'}>
+                    {isConnected ? 'Mic Ready' : 'Mic Off'}
+                  </span>
+                </div>
+                
+                {/* AI Backend Status */}
+                <div className="flex items-center space-x-1">
+                  <div className={`w-2 h-2 rounded-full ${aiBackendReady ? 'bg-blue-400 animate-pulse' : 'bg-yellow-400'}`}></div>
+                  <span className={aiBackendReady ? 'text-blue-300' : 'text-yellow-300'}>
+                    {aiBackendReady ? 'AI Ready' : 'AI Loading'}
+                  </span>
+                </div>
+                
+                {/* Translation Status */}
+                <div className="flex items-center space-x-1">
+                  <div className={`w-2 h-2 rounded-full ${isTranslating ? 'bg-purple-400 animate-spin' : 'bg-gray-400'}`}></div>
+                  <span className={isTranslating ? 'text-purple-300' : 'text-gray-400'}>
+                    {isTranslating ? 'Translating' : 'Ready'}
+                  </span>
                 </div>
               </div>
-            )}
+              
+              {!isConnected && !aiBackendReady && (
+                <div className="text-blue-200 text-xs mt-2">
+                  Click "Start Speaking" and allow microphone permissions
+                </div>
+              )}
+            </div>
           </div>
 
             {/* Voice Testing Section */}
