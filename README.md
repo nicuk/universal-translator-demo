@@ -44,10 +44,4 @@ English → Mandarin, Spanish, French, German, Japanese, Korean, Arabic, Hindi, 
 - Audio quality optimization
 - Mobile app versions
 
-## 🎪 Business Model
-
-- **SaaS Tiers**: $29-299/month
-- **Per-Minute**: $0.10-0.50 per translated minute  
-- **Enterprise**: $10K-50K white-label licenses
-
 *Target: International corporations, educational institutions, conference organizers, government/NGO* 
