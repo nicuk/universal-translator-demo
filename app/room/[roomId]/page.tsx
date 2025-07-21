@@ -183,7 +183,7 @@ export default function RoomPage() {
 
       if (SpeechRecognition) {
         recognitionRef.current = new SpeechRecognition()
-        recognitionRef.current.continuous = false  // Changed to false to reduce phantom words
+        recognitionRef.current.continuous = true   // Back to continuous for better UX
         recognitionRef.current.interimResults = true
         recognitionRef.current.lang = 'en-US'
         recognitionRef.current.maxAlternatives = 1  // Only get the best result
@@ -211,15 +211,15 @@ export default function RoomPage() {
           if (finalTranscript && finalTranscript.trim()) {
             const cleanedText = finalTranscript.trim()
             
+            // Better noise filtering - check for meaningful speech
+            if (cleanedText.length < 3 || /^[uh|um|ah|eh|hmm]+$/i.test(cleanedText)) {
+              console.log(`🔄 Skipping translation - noise or too short: "${cleanedText}"`)
+              return
+            }
+            
             // Prevent translation loops - check if we just processed this text
             if (cleanedText === lastProcessedText || isTranslating) {
               console.log(`🔄 Skipping translation - already processed: "${cleanedText}"`)
-              return
-            }
-
-            // Check for minimal text length to avoid translating noise
-            if (cleanedText.length < 3) {
-              console.log(`🔄 Skipping translation - text too short: "${cleanedText}"`)
               return
             }
 
@@ -360,9 +360,9 @@ export default function RoomPage() {
         recognitionRef.current.onend = () => {
           console.log('🔄 Speech recognition ended')
           
-          // Only restart if user is still actively listening AND we have recent activity
+          // Only restart if user is still actively listening
           if (isListening) {
-            // Add longer delay to prevent picking up ambient noise
+            // Short delay to prevent rapid cycling
             setTimeout(() => {
               if (isListening && recognitionRef.current) {
                 try {
@@ -374,7 +374,7 @@ export default function RoomPage() {
                   setIsConnected(false)
                 }
               }
-            }, 500) // 500ms delay to reduce phantom words
+            }, 100) // 100ms delay - quick restart for better UX
           } else {
             setIsConnected(false)
           }
