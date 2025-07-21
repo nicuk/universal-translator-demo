@@ -140,6 +140,7 @@ export default function RoomPage() {
   const [isTranslating, setIsTranslating] = useState(false)
   const [translationCache, setTranslationCache] = useState<Map<string, string>>(new Map())
   const [aiBackendReady, setAiBackendReady] = useState(false)
+  const [lastTranslationTime, setLastTranslationTime] = useState(0)
 
   const recognitionRef = useRef<any>(null)
   const synthRef = useRef<SpeechSynthesis | null>(null)
@@ -204,15 +205,15 @@ export default function RoomPage() {
             const resultConfidence = result[0].confidence || 0
             
             if (result.isFinal) {
-              // Only accept high-confidence results
-              if (resultConfidence > 0.7 || resultConfidence === undefined) {
-                finalTranscript += transcript
-                confidence = resultConfidence
-                console.log(`🎤 Speech confidence: ${(resultConfidence * 100).toFixed(1)}% for "${transcript}"`)
-              } else {
-                console.log(`🔇 Rejected low confidence (${(resultConfidence * 100).toFixed(1)}%): "${transcript}"`)
-                return // Skip low confidence results
-              }
+                          // Only accept very high-confidence results to prevent phantom speech
+            if (resultConfidence > 0.85 || resultConfidence === undefined) {
+              finalTranscript += transcript
+              confidence = resultConfidence
+              console.log(`🎤 Speech confidence: ${(resultConfidence * 100).toFixed(1)}% for "${transcript}"`)
+            } else {
+              console.log(`🔇 Rejected low confidence (${(resultConfidence * 100).toFixed(1)}%): "${transcript}"`)
+              return // Skip low confidence results
+            }
             } else {
               interimTranscript += transcript
             }
@@ -243,11 +244,14 @@ export default function RoomPage() {
               return
             }
             
-            // Prevent translation loops - check if we just processed this text
-            if (cleanedText === lastProcessedText || isTranslating) {
-              console.log(`🔄 Skipping translation - already processed: "${cleanedText}"`)
+            // Prevent translation loops and rapid-fire phantom speech
+            const now = Date.now()
+            if (cleanedText === lastProcessedText || isTranslating || (now - lastTranslationTime < 2000)) {
+              console.log(`🔄 Skipping translation - already processed or too recent: "${cleanedText}"`)
               return
             }
+            
+            setLastTranslationTime(now)
 
             // Extra verification for short/suspicious phrases
             if (cleanedText.length < 6 && confidence && confidence < 0.9) {

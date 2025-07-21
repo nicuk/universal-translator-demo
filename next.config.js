@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove deprecated experimental option
-  output: 'standalone',
+  // Netlify-compatible output
+  // output: 'export', // Commented out for API routes
   
   // Optimize for static generation where possible
   trailingSlash: false,
