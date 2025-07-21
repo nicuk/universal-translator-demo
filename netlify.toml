@@ -1,29 +1,8 @@
 [build]
   command = "npm run build"
-  publish = ".next"
-
-[build.environment]
-  NODE_VERSION = "18"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-[functions]
-  node_bundler = "nft"
-
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/nextjs"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/nextjs"
-  status = 200
-
-[dev]
-  command = "npm run dev"
-  port = 3000
 
 # Environment variables needed for production
 # Set these in Netlify dashboard:

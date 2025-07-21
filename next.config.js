@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Netlify-compatible output
-  // output: 'export', // Commented out for API routes
+  // Standard Next.js for Netlify with API routes
   
   // Optimize for static generation where possible
   trailingSlash: false,
