@@ -134,6 +134,11 @@ export default function RoomPage() {
   const [isConnected, setIsConnected] = useState(false)
   const [participants, setParticipants] = useState(1)
   const [currentText, setCurrentText] = useState('')
+  
+  // Add state to prevent translation loops
+  const [lastProcessedText, setLastProcessedText] = useState('')
+  const [isTranslating, setIsTranslating] = useState(false)
+  const [translationCache, setTranslationCache] = useState<Map<string, string>>(new Map())
 
   const recognitionRef = useRef<any>(null)
   const synthRef = useRef<SpeechSynthesis | null>(null)
@@ -180,29 +185,72 @@ export default function RoomPage() {
 
           setCurrentText(interimTranscript)
 
-          if (finalTranscript) {
-            console.log(`🎤 Original English: "${finalTranscript}"`)
+          if (finalTranscript && finalTranscript.trim()) {
+            const cleanedText = finalTranscript.trim()
             
-            // Translate the final transcript
-            const translatedText = await translateText(finalTranscript, 'en', currentLanguage)
-            console.log(`🔄 Translated to ${currentLanguage}: "${translatedText}"`)
+            // Prevent translation loops - check if we just processed this text
+            if (cleanedText === lastProcessedText || isTranslating) {
+              console.log(`🔄 Skipping translation - already processed: "${cleanedText}"`)
+              return
+            }
+
+            // Check for minimal text length to avoid translating noise
+            if (cleanedText.length < 3) {
+              console.log(`🔄 Skipping translation - text too short: "${cleanedText}"`)
+              return
+            }
+
+            console.log(`🎤 Original English: "${cleanedText}"`)
+            setLastProcessedText(cleanedText)
+            setIsTranslating(true)
+            
+            // Check cache first
+            const cacheKey = `${cleanedText}-${currentLanguage}`
+            let translatedText = translationCache.get(cacheKey)
+            
+            if (!translatedText) {
+              // Translate the final transcript
+              translatedText = await translateText(cleanedText, 'en', currentLanguage)
+              
+              // Cache the translation
+              if (translatedText) {
+                setTranslationCache(prev => {
+                  const newCache = new Map(prev)
+                  newCache.set(cacheKey, translatedText!)
+                  // Keep cache size manageable
+                  if (newCache.size > 50) {
+                    const firstKey = newCache.keys().next().value
+                    newCache.delete(firstKey)
+                  }
+                  return newCache
+                })
+              }
+            } else {
+              console.log(`♻️ Using cached translation: "${cleanedText}" → "${translatedText || 'unknown'}"`)
+            }
+            
+            // Ensure we have a valid translation
+            const finalTranslatedText = translatedText || cleanedText
+            
+            console.log(`🔄 Translated to ${currentLanguage}: "${finalTranslatedText}"`)
             
             const newMessage: Message = {
               id: Date.now().toString(),
-              originalText: finalTranscript,
-              translatedText: translatedText,
+              originalText: cleanedText,
+              translatedText: finalTranslatedText,
               language: currentLanguage,
               timestamp: new Date(),
               isOwn: true
             }
 
             setMessages(prev => [...prev, newMessage])
+            setIsTranslating(false)
 
             // Speak the translated text with proper voice selection
-            if (synthRef.current && currentLanguage !== 'en' && translatedText && translatedText !== finalTranscript) {
-              console.log(`🔊 Speaking translated text: "${translatedText}"`)
+            if (synthRef.current && currentLanguage !== 'en' && finalTranslatedText && finalTranslatedText !== cleanedText) {
+              console.log(`🔊 Speaking translated text: "${finalTranslatedText}"`)
               
-              const utterance = new SpeechSynthesisUtterance(translatedText)
+              const utterance = new SpeechSynthesisUtterance(finalTranslatedText)
               
               // Set proper language codes and find native voices
               const languageMap: Record<string, string> = {
